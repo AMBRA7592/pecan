@@ -52,10 +52,14 @@ grid2netcdf <- function(gdata, date = "9999-09-09", outfile = "out.nc") {
     )
   }
   grid.data <- merge(latlons, gdata, by = c("lat", "lon", "date"), all.x = TRUE)
+  dates.text <- as.character(dates)
+  dates.parsed <- lubridate::ymd(dates.text)
+  missing.dates <- is.na(dates.parsed)
+  dates.parsed[missing.dates] <- lubridate::ymd(paste0(dates.text[missing.dates], "-01-01"))
   lat       <- ncdf4::ncdim_def("lat", "degrees_east", vals = lats, longname = "station_latitude")
   lon       <- ncdf4::ncdim_def("lon", "degrees_north", vals = lons, longname = "station_longitude")
   time      <- ncdf4::ncdim_def(name = "time", units = paste0("days since 1700-01-01"),
-                         vals = as.numeric(lubridate::ymd(paste0(years, "01-01")) - lubridate::ymd("1700-01-01")),
+                         vals = as.numeric(dates.parsed - lubridate::ymd("1700-01-01")),
                          calendar = "standard",
                          unlim = TRUE)
 
@@ -65,6 +69,10 @@ grid2netcdf <- function(gdata, date = "9999-09-09", outfile = "out.nc") {
   ## Output netCDF data
   #    ncvar_put(nc, varid = yieldvar, vals = grid.data[order(lat, lon, order(lubridate::ymd(date )))]$yield)
   #    ncvar_put(nc, varid = yieldvar, vals = grid.data[order(order(lubridate::ymd(date), lat, lon))]$yield)
+  grid.data <- grid.data[order(match(grid.data$date, dates),
+                               match(grid.data$lon, lons),
+                               match(grid.data$lat, lats)), ]
+  yieldarray <- array(grid.data$yield, dim = c(length(lats), length(lons), length(dates)))
   ncdf4::ncvar_put(nc, varid = yieldvar, vals = yieldarray)
 
   ncdf4::ncatt_put(nc, 0, "description", "put description here")
